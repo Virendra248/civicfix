@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicFix | Future City Portal</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Alpine.js -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Google Maps API (Replace YOUR_API_KEY) -->
+    <!-- Note: We use a callback 'initMap' to load the map when ready -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap" async defer></script>
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                fontFamily: {
+                    sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                },
+                extend: {
+                    colors: {
+                        glass: {
+                            100: 'rgba(255, 255, 255, 0.1)',
+                            200: 'rgba(255, 255, 255, 0.2)',
+                            300: 'rgba(255, 255, 255, 0.3)',
+                            border: 'rgba(255, 255, 255, 0.4)',
+                        },
+                        brand: {
+                            400: '#2dd4bf', // Teal
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            dark: '#0f172a',
+                        },
+                        accent: {
+                            400: '#818cf8', // Indigo
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                        }
+                    },
+                    animation: {
+                        'blob': 'blob 7s infinite',
+                        'scan': 'scan 2s linear infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        scan: {
+                            '0%': { top: '0%' },
+                            '100%': { top: '100%' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+
+        // Dummy Data for Map Pins
+        const ISSUE_PINS = [
+            { id: 1, lat: 40.7128, lng: -74.0060, title: "Large Pothole Cluster", category: "Roads", upvotes: 49, status: "Open", image: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=400", comments: [{user: "Alice", text: "Hit this yesterday, huge damage!"}, {user: "Bob", text: "Reported this last week."}] },
+            { id: 2, lat: 40.7138, lng: -74.0070, title: "Broken Street Light", category: "Electric", upvotes: 12, status: "In Progress", image: "https://images.unsplash.com/photo-1542665174-31db64d7e0e4?auto=format&fit=crop&q=80&w=400", comments: [{user: "Sam", text: "It's pitch black here at night."}] },
+            { id: 3, lat: 40.7118, lng: -74.0050, title: "Water Leakage", category: "Water", upvotes: 8, status: "Open", image: "https://images.unsplash.com/photo-1585937422176-5290b3323055?auto=format&fit=crop&q=80&w=400", comments: [] },
+        ];
+
+        function civicApp() {
+            return {
+                page: 'home',
+                showReportModal: false,
+                analyzing: false,
+                aiResult: null,
+                selectedCategory: '',
+                reportComment: '',
+                verificationState: 'pending',
+                
+                // Map Logic
+                mapLoaded: false,
+                selectedPin: null,
+                zoomLevel: 1, 
+                
+                init() {
+                    // Check if Google Maps loaded, if not use fallback mode
+                    setTimeout(() => {
+                        if (typeof google === 'undefined') {
+                            console.log("Google Maps API not loaded (likely no key). Using Simulation Mode.");
+                            this.mapLoaded = false;
+                        } else {
+                            this.mapLoaded = true;
+                            // Google Map Init would happen via callback, usually we'd bind it here
+                        }
+                        this.initCharts();
+                    }, 1000);
+                },
+
+                setPage(p) {
+                    this.page = p;
+                    window.scrollTo({top:0, behavior:'smooth'});
+                    if(p === 'stats') {
+                        setTimeout(() => this.initCharts(), 300);
+                    }
+                },
+
+                simulateAI() {
+                    this.analyzing = true;
+                    setTimeout(() => {
+                        this.analyzing = false;
+                        this.aiResult = {
+                            category: 'Pothole / Road Damage',
+                            dept: 'Road Department',
+                            confidence: 98,
+                            isCrossDept: true,
+                            secondary: 'Water Board'
+                        };
+                        this.selectedCategory = this.aiResult.category;
+                    }, 2500);
+                },
+
+                submitTicket() {
+                    this.showReportModal = false;
+                    this.page = 'home';
+                    this.aiResult = null;
+                    this.reportComment = '';
+                    alert("Report Submitted! Thank you.");
+                },
+
+                // Pin Logic
+                selectPin(pin) {
+                    this.selectedPin = pin;
+                },
+                
+                closePinDetails() {
+                    this.selectedPin = null;
+                },
+
+                upvoteIssue(id) {
+                    const pin = ISSUE_PINS.find(p => p.id === id);
+                    if(pin) pin.upvotes++;
+                },
+
+                verify(status) {
+                    this.verificationState = status;
+                },
+                
+                // Chart.js Initialization
+                initCharts() {
+                    const ctx1 = document.getElementById('chartTime');
+                    const ctx2 = document.getElementById('chartCat');
+                    
+                    if(ctx1) {
+                        new Chart(ctx1, {
+                            type: 'line',
+                            data: {
+                                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                                datasets: [{
+                                    label: 'Reports Resolves',
+                                    data: [12, 19, 3, 5, 2, 3],
+                                    borderColor: '#14b8a6',
+                                    backgroundColor: 'rgba(20, 184, 166, 0.2)',
+                                    tension: 0.4,
+                                    fill: true
+                                }]
+                            },
+                            options: { responsive: true, plugins: { legend: { display: false } } }
+                        });
+                    }
+
+                    if(ctx2) {
+                        new Chart(ctx2, {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Roads', 'Water', 'Electric', 'Garbage'],
+                                datasets: [{
+                                    data: [45, 25, 20, 10],
+                                    backgroundColor: ['#14b8a6', '#6366f1', '#f59e0b', '#ef4444'],
+                                    borderWidth: 0
+                                }]
+                            },
+                            options: { responsive: true, cutout: '70%' }
+                        });
+                    }
+                },
+                
+                // Map Simulation Zoom
+                zoomIn() {
+                    if (this.zoomLevel < 2) this.zoomLevel += 0.2;
+                },
+                zoomOut() {
+                    if (this.zoomLevel > 0.6) this.zoomLevel -= 0.2;
+                }
+            }
+        }
+
+        // Global Google Maps Callback (if key provided)
+        function initMap() {
+            // This would initialize the real map
+            console.log("Maps API Loaded");
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #f3f4f6;
+            overflow-x: hidden;
+        }
+        
+        /* Modern Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Glassmorphism Classes */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Map Grid */
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image:
+                linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+        }
+        
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased" x-data="civicApp()" x-init="init()">
+
+    <!-- Decorative Animated Background Blobs -->
+    <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-brand-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+        <div class="absolute top-0 right-1/4 w-96 h-96 bg-accent-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob" style="animation-delay: 2s"></div>
+        <div class="absolute -bottom-32 left-1/3 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob" style="animation-delay: 4s"></div>
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        
+        <!-- DESKTOP SIDEBAR (Floating Glass Style) -->
+        <aside class="hidden md:flex flex-col w-20 lg:w-72 m-4 rounded-3xl glass-panel shadow-2xl z-20 transition-all duration-300">
+            <!-- Brand -->
+            <div class="p-6 flex items-center justify-center lg:justify-start gap-3 mb-6">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-accent-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/30 shrink-0">
+                    <i class="fas fa-bolt text-lg"></i>
+                </div>
+                <div class="hidden lg:block">
+                    <h1 class="font-bold text-xl tracking-tight text-slate-800">CivicFix<span class="text-brand-600">.ai</span></h1>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="flex-1 px-4 space-y-3">
+                <template x-for="item in [
+                    {id: 'home', icon: 'fa-home', label: 'Dashboard'},
+                    {id: 'explore', icon: 'fa-map-marked-alt', label: 'Cluster Map'},
+                    {id: 'verify', icon: 'fa-check-double', label: 'Verification', badge: 1},
+                    {id: 'stats', icon: 'fa-chart-pie', label: 'City Stats'}
+                ]">
+                    <button @click="setPage(item.id)" 
+                        :class="page === item.id ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20' : 'text-slate-500 hover:bg-white/50 hover:text-brand-600'"
+                        class="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200 group">
+                        <i :class="['fas', item.icon, 'text-lg w-6 text-center transition-colors', page === item.id ? 'text-brand-400' : 'group-hover:text-brand-500']"></i>
+                        <span class="hidden lg:block font-medium text-sm" x-text="item.label"></span>
+                        <span x-show="item.badge" class="hidden lg:flex ml-auto bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm" x-text="item.badge"></span>
+                        <!-- Tooltip for collapsed mode -->
+                        <div class="lg:hidden absolute left-20 bg-slate-900 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap z-50">
+                            <span x-text="item.label"></span>
+                        </div>
+                    </button>
+                </template>
+            </nav>
+
+            <!-- User Profile (Bottom) -->
+            <div class="p-4 mt-auto">
+                <div class="bg-white/50 p-3 rounded-2xl flex items-center gap-3 border border-white/60">
+                    <img src="https://ui-avatars.com/api/?name=User+Citizen&background=0D9488&color=fff" class="w-9 h-9 rounded-full shadow-sm">
+                    <div class="hidden lg:block">
+                        <p class="text-xs font-bold text-slate-700">Citizen #9921</p>
+                        <p class="text-[10px] text-emerald-600 font-medium">● Online</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="flex-1 h-full overflow-y-auto relative no-scrollbar">
+            
+            <!-- Mobile Header -->
+            <header class="md:hidden flex justify-between items-center p-4 sticky top-0 z-30 glass-panel border-b-0 m-4 rounded-2xl mb-0 shadow-sm">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-accent-600 flex items-center justify-center text-white">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <span class="font-bold text-lg text-slate-800">CivicFix</span>
+                </div>
+                <button @click="showReportModal = true" class="bg-slate-900 text-white w-9 h-9 rounded-full flex items-center justify-center shadow-lg">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </header>
+
+            <div class="max-w-6xl mx-auto p-4 md:p-8 pt-4 md:pt-10 pb-28 md:pb-10">
+
+                <!-- DASHBOARD (Home) -->
+                <div x-show="page === 'home'" x-transition.opacity.duration.300ms>
+                    <!-- Header -->
+                    <div class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+                        <div>
+                            <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+                                Hello, <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-accent-600">Neighbor</span>.
+                            </h2>
+                            <p class="text-slate-500 mt-2 font-medium">You have 2 active reports impacting your Trust Score.</p>
+                        </div>
+                        <button @click="showReportModal = true" class="hidden md:flex group relative px-8 py-4 bg-slate-900 text-white rounded-2xl font-bold overflow-hidden shadow-2xl shadow-brand-500/20 hover:shadow-brand-500/40 transition-all hover:-translate-y-1">
+                            <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-brand-500 to-accent-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            <span class="relative flex items-center gap-2"><i class="fas fa-camera"></i> New Report</span>
+                        </button>
+                    </div>
+
+                    <!-- Cards Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        
+                        <!-- Active Ticket Card (Glass Style) -->
+                        <div class="glass-panel rounded-[2rem] p-6 relative overflow-hidden group hover:bg-white/80 transition-all">
+                            <!-- Background Decor -->
+                            <div class="absolute top-0 right-0 w-32 h-32 bg-orange-200/50 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                            
+                            <div class="flex justify-between items-start mb-4 relative z-10">
+                                <span class="bg-white/80 backdrop-blur text-orange-600 px-3 py-1 rounded-lg text-xs font-bold border border-orange-100 shadow-sm">
+                                    <i class="fas fa-clock mr-1"></i> In Progress
+                                </span>
+                                <button class="text-slate-400 hover:text-slate-600"><i class="fas fa-ellipsis-h"></i></button>
+                            </div>
+                            
+                            <h3 class="text-xl font-bold text-slate-800 mb-1">Street Light Outage</h3>
+                            <p class="text-sm text-slate-500 mb-6 flex items-center gap-1">
+                                <i class="fas fa-map-marker-alt text-brand-500"></i> 5th Avenue & Main St
+                            </p>
+
+                            <!-- SLA Timer Visual -->
+                            <div class="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 mb-4">
+                                <div class="flex justify-between items-end mb-2">
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">SLA Deadline</span>
+                                    <span class="text-sm font-mono font-bold text-red-500">04:12:00</span>
+                                </div>
+                                <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                                    <div class="bg-gradient-to-r from-orange-400 to-red-500 w-[85%] h-full rounded-full animate-pulse"></div>
+                                </div>
+                                <div class="mt-2 flex items-center gap-2 text-[10px] text-red-600 font-medium">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                    <span>Auto-escalation to Commissioner active</span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between pt-2 border-t border-slate-200/50">
+                                <div class="flex -space-x-2">
+                                    <div class="w-8 h-8 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-white text-[10px]">YD</div>
+                                    <div class="w-8 h-8 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-slate-500 text-[10px]">+2</div>
+                                </div>
+                                <span class="text-xs text-slate-400 font-medium">Ticket #8821</span>
+                            </div>
+                        </div>
+
+                        <!-- Joint Ownership Card -->
+                        <div class="glass-panel rounded-[2rem] p-6 relative overflow-hidden group hover:bg-white/80 transition-all border-l-4 border-l-brand-500">
+                             <div class="flex justify-between items-start mb-4 relative z-10">
+                                <span class="bg-brand-50 backdrop-blur text-brand-700 px-3 py-1 rounded-lg text-xs font-bold border border-brand-100 shadow-sm">
+                                    <i class="fas fa-handshake mr-1"></i> Joint Ticket
+                                </span>
+                                <span class="text-xs font-mono text-slate-400">#8904</span>
+                            </div>
+
+                            <h3 class="text-xl font-bold text-slate-800 mb-1">Burst Pipe & Road Damage</h3>
+                            <p class="text-sm text-slate-500 mb-6">Requires sign-off from two departments.</p>
+
+                            <div class="flex gap-2 mb-4">
+                                <div class="flex-1 bg-white rounded-xl p-3 border border-slate-100 flex flex-col items-center justify-center opacity-50 grayscale">
+                                    <i class="fas fa-water text-blue-500 mb-1"></i>
+                                    <span class="text-[10px] font-bold">Water Dept</span>
+                                    <i class="fas fa-check-circle text-green-500 text-xs mt-1"></i>
+                                </div>
+                                <div class="flex items-center text-slate-300"><i class="fas fa-arrow-right"></i></div>
+                                <div class="flex-1 bg-white rounded-xl p-3 border border-brand-200 shadow-sm flex flex-col items-center justify-center ring-2 ring-brand-400">
+                                    <i class="fas fa-road text-slate-600 mb-1"></i>
+                                    <span class="text-[10px] font-bold">Road Dept</span>
+                                    <span class="text-[10px] text-brand-600 animate-pulse mt-1">Pending...</span>
+                                </div>
+                            </div>
+                            
+                            <div class="text-[11px] text-slate-500 bg-slate-100/50 p-2 rounded-lg text-center">
+                                'No-Reject' Policy Active: Dept cannot close without proof.
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- CLUSTER MAP (Explore) -->
+                <div x-show="page === 'explore'" x-transition.opacity.duration.300ms class="h-[80vh] relative">
+                    
+                    <div class="absolute inset-0 bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
+                        
+                        <!-- 1. GOOGLE MAP CONTAINER (If API Key Present) -->
+                        <div x-show="mapLoaded" id="google-map" class="w-full h-full"></div>
+
+                        <!-- 2. FALLBACK MAP SIMULATION (For Preview/No API Key) -->
+                        <div x-show="!mapLoaded" class="w-full h-full relative overflow-hidden bg-slate-100 cursor-grab active:cursor-grabbing bg-grid"
+                             @mousedown.prevent="/* Mock Pan Logic would go here */">
+                            
+                            <!-- Roads/Map Art for Simulation -->
+                            <div class="absolute inset-0 transition-transform duration-200 ease-out" 
+                                 :style="`transform: scale(${zoomLevel})`">
+                                <div class="absolute top-1/2 w-full h-12 bg-white border-y border-slate-200 shadow-sm transform -rotate-12 scale-110"></div>
+                                <div class="absolute left-1/3 h-full w-8 bg-white border-x border-slate-200"></div>
+                                <div class="absolute top-1/4 left-1/4 w-32 h-32 border border-slate-300 rounded-full border-dashed opacity-20"></div>
+
+                                <!-- Pins Rendering from Data -->
+                                <template x-for="pin in ISSUE_PINS" :key="pin.id">
+                                    <div class="absolute transform -translate-x-1/2 -translate-y-1/2 group"
+                                         :style="`top: ${50 + (pin.lat - 40.7128)*1000}%; left: ${50 + (pin.lng + 74.0060)*1000}%`"
+                                         @click="selectPin(pin)">
+                                        
+                                        <!-- Pin Visual -->
+                                        <div class="relative transition-transform duration-300 hover:scale-125 hover:-translate-y-2 cursor-pointer z-10">
+                                            <div class="w-10 h-10 bg-slate-800 text-white rounded-xl rounded-bl-none rotate-45 border-2 border-white shadow-lg flex items-center justify-center">
+                                                <i class="-rotate-45 fas" :class="{
+                                                    'fa-road': pin.category === 'Roads',
+                                                    'fa-bolt': pin.category === 'Electric',
+                                                    'fa-water': pin.category === 'Water'
+                                                }"></i>
+                                            </div>
+                                            <!-- Upvote Badge -->
+                                            <div class="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm border border-white" x-text="pin.upvotes"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Zoom Controls (Simulation) -->
+                            <div class="absolute bottom-6 right-6 flex flex-col gap-2">
+                                <button @click="zoomIn()" class="w-10 h-10 bg-white rounded-xl shadow-lg flex items-center justify-center hover:bg-slate-50"><i class="fas fa-plus"></i></button>
+                                <button @click="zoomOut()" class="w-10 h-10 bg-white rounded-xl shadow-lg flex items-center justify-center hover:bg-slate-50"><i class="fas fa-minus"></i></button>
+                            </div>
+
+                            <!-- API Key Warning (For Developer) -->
+                            <div class="absolute top-4 left-4 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-lg text-xs font-bold border border-yellow-200">
+                                <i class="fas fa-info-circle mr-1"></i> Simulation Mode (Add API Key to Enable Live Map)
+                            </div>
+                        </div>
+
+                        <!-- 3. PIN DETAIL OVERLAY (Right Side Panel) -->
+                        <div x-show="selectedPin" 
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="translate-x-full"
+                             x-transition:enter-end="translate-x-0"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="translate-x-0"
+                             x-transition:leave-end="translate-x-full"
+                             class="absolute top-0 right-0 h-full w-full md:w-96 bg-white/95 backdrop-blur shadow-2xl z-50 overflow-y-auto">
+                             
+                            <div class="relative h-48 bg-slate-200">
+                                <img :src="selectedPin?.image" class="w-full h-full object-cover">
+                                <button @click="closePinDetails()" class="absolute top-4 right-4 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur hover:bg-black/70 transition">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+
+                            <div class="p-6">
+                                <div class="flex justify-between items-start mb-2">
+                                    <span class="bg-brand-100 text-brand-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" x-text="selectedPin?.category"></span>
+                                    <span class="text-xs text-slate-400 font-mono">#9921</span>
+                                </div>
+                                <h2 class="text-xl font-bold text-slate-800 mb-2" x-text="selectedPin?.title"></h2>
+                                
+                                <!-- Action Bar -->
+                                <div class="flex gap-3 mb-6">
+                                    <button @click="upvoteIssue(selectedPin.id)" class="flex-1 bg-slate-900 text-white py-2 rounded-xl text-sm font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-95 transition">
+                                        <i class="fas fa-arrow-up"></i>
+                                        <span>Upvote (<span x-text="selectedPin?.upvotes"></span>)</span>
+                                    </button>
+                                    <button class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200"><i class="fas fa-share-alt text-slate-500"></i></button>
+                                </div>
+
+                                <!-- Reviews/Comments -->
+                                <h3 class="text-sm font-bold text-slate-800 mb-3 border-b border-slate-100 pb-2">Community Feedback</h3>
+                                <div class="space-y-4">
+                                    <template x-for="comment in selectedPin?.comments">
+                                        <div class="flex gap-3">
+                                            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold" x-text="comment.user[0]"></div>
+                                            <div>
+                                                <p class="text-xs font-bold text-slate-700" x-text="comment.user"></p>
+                                                <p class="text-sm text-slate-500" x-text="comment.text"></p>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    <div x-show="!selectedPin?.comments.length" class="text-sm text-slate-400 italic">No comments yet. Be the first!</div>
+                                </div>
+                                
+                                <!-- Add Comment -->
+                                <div class="mt-4 pt-4 border-t border-slate-100">
+                                    <input type="text" placeholder="Add a comment..." class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500">
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- CITY STATS (Charts) -->
+                <div x-show="page === 'stats'" x-transition.opacity.duration.300ms>
+                     <h2 class="text-3xl font-bold text-slate-900 mb-6">City Health Monitor</h2>
+                     
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                         <!-- Chart 1 -->
+                         <div class="glass-panel p-6 rounded-3xl">
+                             <h3 class="text-sm font-bold text-slate-500 uppercase mb-4">Reports vs Resolutions</h3>
+                             <canvas id="chartTime" height="200"></canvas>
+                         </div>
+                         <!-- Chart 2 -->
+                         <div class="glass-panel p-6 rounded-3xl">
+                             <h3 class="text-sm font-bold text-slate-500 uppercase mb-4">Issues by Category</h3>
+                             <div class="h-48 flex justify-center">
+                                 <canvas id="chartCat"></canvas>
+                             </div>
+                         </div>
+                     </div>
+
+                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <h3 class="text-gray-500 text-xs font-bold uppercase mb-2">SLA Breach Rate</h3>
+                            <p class="text-3xl font-bold text-green-500">4.2% <span class="text-xs text-gray-400 font-normal">(-2%)</span></p>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <h3 class="text-gray-500 text-xs font-bold uppercase mb-2">Most Responsive</h3>
+                            <p class="text-xl font-bold text-gray-800">Electric Dept</p>
+                            <p class="text-xs text-gray-400">Avg closure: 12hrs</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <h3 class="text-gray-500 text-xs font-bold uppercase mb-2">My Impact</h3>
+                            <p class="text-3xl font-bold text-indigo-600">8 <span class="text-xs text-gray-400 font-normal">Fixed</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VERIFICATION (Verify) -->
+                <div x-show="page === 'verify'" x-transition.opacity.duration.300ms>
+                    <div class="max-w-2xl mx-auto">
+                        <div class="text-center mb-8">
+                            <span class="bg-brand-100 text-brand-700 px-4 py-1.5 rounded-full text-xs font-bold mb-4 inline-block shadow-sm">
+                                Action Required
+                            </span>
+                            <h2 class="text-3xl font-bold text-slate-900">Did they fix it?</h2>
+                            <p class="text-slate-500 mt-2">Compare the photos. You hold the power to close this ticket.</p>
+                        </div>
+
+                        <!-- Compare Card -->
+                        <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
+                            <!-- Slider Line (Visual only) -->
+                            <div class="absolute inset-y-0 left-1/2 w-1 bg-white z-20 shadow-[0_0_10px_rgba(0,0,0,0.2)] flex items-center justify-center">
+                                <div class="w-8 h-8 bg-white rounded-full shadow-md flex items-center justify-center cursor-ew-resize text-slate-400">
+                                    <i class="fas fa-arrows-alt-h text-xs"></i>
+                                </div>
+                            </div>
+
+                            <div class="flex h-72">
+                                <!-- Before -->
+                                <div class="w-1/2 bg-slate-200 relative group overflow-hidden">
+                                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
+                                        <span class="text-white font-bold text-sm">BEFORE</span>
+                                        <span class="text-slate-300 text-xs">Feb 15 • Your Report</span>
+                                    </div>
+                                    <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-slate-400 opacity-50">
+                                        <i class="fas fa-camera-retro text-4xl"></i>
+                                    </div>
+                                </div>
+                                <!-- After -->
+                                <div class="w-1/2 bg-emerald-50 relative group overflow-hidden">
+                                    <div class="absolute inset-0 bg-gradient-to-t from-emerald-900/60 to-transparent flex flex-col justify-end p-4">
+                                        <span class="text-white font-bold text-sm">AFTER</span>
+                                        <span class="text-emerald-200 text-xs">Today • Official Upload</span>
+                                    </div>
+                                    <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-emerald-400 opacity-50">
+                                        <i class="fas fa-check-circle text-4xl"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Actions -->
+                            <div class="p-6 bg-white z-30 relative">
+                                <div x-show="verificationState === 'pending'" class="flex gap-4">
+                                    <button @click="verify('rejected')" class="flex-1 py-4 rounded-xl border-2 border-slate-100 font-bold text-slate-500 hover:border-red-100 hover:bg-red-50 hover:text-red-600 transition-all">
+                                        <i class="fas fa-times mr-2"></i> Not Fixed
+                                    </button>
+                                    <button @click="verify('verified')" class="flex-1 py-4 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 text-white font-bold shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50 hover:-translate-y-0.5 transition-all">
+                                        <i class="fas fa-check mr-2"></i> Confirm Fix
+                                    </button>
+                                </div>
+
+                                <div x-show="verificationState === 'verified'" class="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center gap-4 animate-float">
+                                    <div class="w-12 h-12 bg-emerald-500 rounded-full text-white flex items-center justify-center text-xl shrink-0">
+                                        <i class="fas fa-award"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-emerald-900">Verification Success!</h4>
+                                        <p class="text-sm text-emerald-700">+50 Trust Points added to your profile.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MOBILE NAV BAR (Bottom) -->
+    <div class="md:hidden fixed bottom-6 left-6 right-6 glass-dark rounded-2xl p-3 flex justify-around items-center z-50 shadow-2xl backdrop-blur-xl border border-white/10">
+        <button @click="setPage('home')" :class="page === 'home' ? 'text-brand-400' : 'text-slate-400'" class="flex flex-col items-center gap-1 w-12">
+            <i class="fas fa-home text-lg"></i>
+            <span class="text-[9px] font-medium">Home</span>
+        </button>
+        <button @click="setPage('explore')" :class="page === 'explore' ? 'text-brand-400' : 'text-slate-400'" class="flex flex-col items-center gap-1 w-12">
+            <i class="fas fa-map text-lg"></i>
+            <span class="text-[9px] font-medium">Map</span>
+        </button>
+        <!-- Floating FAB in Nav -->
+        <button @click="showReportModal = true" class="relative -top-8 bg-gradient-to-br from-brand-400 to-accent-500 w-14 h-14 rounded-2xl rotate-45 flex items-center justify-center shadow-lg shadow-brand-500/50 hover:scale-105 transition border-4 border-slate-100">
+            <i class="fas fa-camera text-white text-xl -rotate-45"></i>
+        </button>
+        <button @click="setPage('verify')" :class="page === 'verify' ? 'text-brand-400' : 'text-slate-400'" class="flex flex-col items-center gap-1 w-12 relative">
+            <i class="fas fa-check-double text-lg"></i>
+            <span class="text-[9px] font-medium">Verify</span>
+            <span class="absolute top-0 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+        </button>
+        <button @click="setPage('stats')" :class="page === 'stats' ? 'text-brand-400' : 'text-slate-400'" class="flex flex-col items-center gap-1 w-12">
+            <i class="fas fa-chart-pie text-lg"></i>
+            <span class="text-[9px] font-medium">Stats</span>
+        </button>
+    </div>
+
+    <!-- REPORT MODAL (Full Screen Glass) -->
+    <div x-show="showReportModal" style="display: none;" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-10 scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+        class="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+        
+        <div class="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden relative max-h-[90vh] overflow-y-auto">
+            <!-- Header -->
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-20">
+                <h3 class="font-bold text-xl text-slate-800">New Evidence</h3>
+                <button @click="showReportModal = false" class="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition">
+                    <i class="fas fa-times text-slate-500"></i>
+                </button>
+            </div>
+
+            <div class="p-6">
+                <!-- Capture Zone -->
+                <div @click="simulateAI()" class="relative h-48 rounded-3xl border-2 border-dashed border-brand-200 bg-brand-50/50 cursor-pointer overflow-hidden group hover:bg-brand-50 transition-colors">
+                    
+                    <!-- Idle State -->
+                    <div x-show="!analyzing && !aiResult" class="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
+                        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg mb-4 group-hover:scale-110 transition-transform">
+                            <i class="fas fa-camera text-2xl text-brand-500"></i>
+                        </div>
+                        <p class="font-bold text-slate-700">Tap to Capture</p>
+                    </div>
+
+                    <!-- Scanning State -->
+                    <div x-show="analyzing" class="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center text-white z-10">
+                        <div class="absolute inset-0 bg-grid opacity-10"></div>
+                        <div class="w-full h-1 bg-brand-400 absolute shadow-[0_0_20px_#2dd4bf] animate-scan"></div>
+                        <i class="fas fa-circle-notch fa-spin text-3xl text-brand-400 mb-3"></i>
+                        <p class="font-mono text-xs tracking-widest uppercase">Analyzing...</p>
+                    </div>
+
+                    <!-- Result State -->
+                    <div x-show="aiResult" class="absolute inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center">
+                        <div class="bg-white rounded-2xl p-4 flex items-center gap-3 shadow-xl">
+                            <i class="fas fa-check-circle text-2xl text-emerald-500"></i>
+                            <div>
+                                <p class="font-bold text-sm">Image Captured</p>
+                                <p class="text-xs text-slate-500">GPS Tags Encrypted</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Analysis Result Panel -->
+                <div x-show="aiResult" x-transition.opacity.delay.300ms class="mt-6 space-y-4">
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-robot text-brand-500"></i>
+                                <span class="text-xs font-bold uppercase text-slate-500">AI Detected</span>
+                            </div>
+                            <span class="bg-brand-100 text-brand-700 text-[10px] font-bold px-2 py-0.5 rounded">98% Match</span>
+                        </div>
+                        
+                        <div class="text-lg font-bold text-slate-800 mb-1" x-text="aiResult?.category"></div>
+                        <div class="text-sm text-slate-500 flex items-center gap-2">
+                            <i class="fas fa-share text-xs"></i>
+                            Routing to: <span class="font-semibold text-brand-600" x-text="aiResult?.dept"></span>
+                        </div>
+                    </div>
+
+                    <!-- Added: Comments Field -->
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase mb-2 block">Additional Comments</label>
+                        <textarea x-model="reportComment" placeholder="Describe the issue specifically..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-500 h-24 resize-none"></textarea>
+                    </div>
+
+                    <button @click="submitTicket()" class="w-full py-4 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition shadow-xl flex items-center justify-center gap-2">
+                        <span>Submit Verified Report</span>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
