@@ -13,8 +13,8 @@
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Alpine.js -->
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Alpine.js - WITH DEFER -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -22,381 +22,16 @@
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <script>
-        tailwind.config = {
-            theme: {
-                fontFamily: {
-                    sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-                },
-                extend: {
-                    colors: {
-                        glass: {
-                            100: 'rgba(255, 255, 255, 0.1)',
-                            200: 'rgba(255, 255, 255, 0.2)',
-                            300: 'rgba(255, 255, 255, 0.3)',
-                            border: 'rgba(255, 255, 255, 0.4)',
-                        },
-                        brand: {
-                            400: '#2dd4bf',
-                            500: '#14b8a6',
-                            600: '#0d9488',
-                            dark: '#0f172a',
-                        },
-                        accent: {
-                            400: '#818cf8',
-                            500: '#6366f1',
-                            600: '#4f46e5',
-                        }
-                    },
-                    animation: {
-                        'blob': 'blob 7s infinite',
-                        'scan': 'scan 2s linear infinite',
-                        'float': 'float 6s ease-in-out infinite',
-                        'slide-up': 'slideUp 0.3s ease-out',
-                    },
-                    keyframes: {
-                        blob: {
-                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
-                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
-                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
-                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
-                        },
-                        scan: {
-                            '0%': { top: '0%' },
-                            '100%': { top: '100%' },
-                        },
-                        float: {
-                            '0%, 100%': { transform: 'translateY(0)' },
-                            '50%': { transform: 'translateY(-10px)' },
-                        },
-                        slideUp: {
-                            '0%': { transform: 'translateY(20px)', opacity: '0' },
-                            '100%': { transform: 'translateY(0)', opacity: '1' },
-                        }
-                    }
-                }
-            }
-        }
-
-        // Dummy Data for Map Fallback
-        const ISSUE_PINS = [
-            { id: 1, lat: 40.7128, lng: -74.0060, title: "Large Pothole Cluster", category: "Roads", upvotes: 49, status: "Open", image: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=400", comments: [{user: "Alice", text: "Hit this yesterday, huge damage!"}, {user: "Bob", text: "Reported this last week."}] },
-            { id: 2, lat: 40.7138, lng: -74.0070, title: "Broken Street Light", category: "Electric", upvotes: 12, status: "In Progress", image: "https://images.unsplash.com/photo-1542665174-31db64d7e0e4?auto=format&fit=crop&q=80&w=400", comments: [{user: "Sam", text: "It's pitch black here at night."}] },
-            { id: 3, lat: 40.7118, lng: -74.0050, title: "Water Leakage", category: "Water", upvotes: 8, status: "Open", image: "https://images.unsplash.com/photo-1585937422176-5290b3323055?auto=format&fit=crop&q=80&w=400", comments: [] },
-        ];
-
-        function civicApp() {
-            return {
-                // Page State
-                page: 'home',
-                showReportModal: false,
-                analyzing: false,
-                aiResult: null,
-                selectedCategory: '',
-                reportComment: '',
-                verificationState: 'pending',
-                
-                // Map State
-                mapLoaded: false,
-                selectedPin: null,
-                zoomLevel: 1,
-                
-                // API Integration
-                realComplaints: [],
-                loading: false,
-                apiError: null,
-                apiBase: 'http://localhost:3000/api',
-                
-                // Chart instances
-                chartTime: null,
-                chartCat: null,
-                
-                // Initialize
-                init() {
-                    // Check if Google Maps loaded
-                    setTimeout(() => {
-                        if (typeof google === 'undefined') {
-                            console.log("Google Maps API not loaded. Using Simulation Mode.");
-                            this.mapLoaded = false;
-                        } else {
-                            this.mapLoaded = true;
-                        }
-                        
-                        // Fetch real data
-                        this.fetchComplaints();
-                        this.fetchStats();
-                        
-                    }, 1000);
-                },
-
-                // Navigation
-                setPage(p) {
-                    this.page = p;
-                    window.scrollTo({top:0, behavior:'smooth'});
-                    if(p === 'stats') {
-                        setTimeout(() => this.initCharts(), 300);
-                    }
-                },
-
-                // ========== API FUNCTIONS ==========
-                
-                // Fetch complaints from backend
-                async fetchComplaints() {
-                    this.loading = true;
-                    try {
-                        const response = await fetch(`${this.apiBase}/complaints`);
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            this.realComplaints = data.data;
-                            console.log('✅ Loaded complaints:', this.realComplaints);
-                            
-                            // Update map pins
-                            window.ISSUE_PINS = this.realComplaints.map(c => ({
-                                id: c.id,
-                                lat: parseFloat(c.latitude) || 40.7128,
-                                lng: parseFloat(c.longitude) || -74.0060,
-                                title: c.title,
-                                category: c.category_name,
-                                upvotes: c.upvotes,
-                                status: c.status,
-                                image: c.image || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=400',
-                                comments: []
-                            }));
-                        } else {
-                            throw new Error(data.message || 'Failed to fetch');
-                        }
-                    } catch (error) {
-                        console.error('❌ Error fetching complaints:', error);
-                        this.apiError = error.message;
-                        // Fallback to dummy data
-                        this.realComplaints = ISSUE_PINS;
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-                
-                // Fetch statistics
-                async fetchStats() {
-                    try {
-                        const response = await fetch(`${this.apiBase}/complaints/stats`);
-                        const data = await response.json();
-                        
-                        if (data.success && data.data) {
-                            console.log('📊 Stats loaded:', data.data);
-                            // Update charts with real data when they're initialized
-                            this.statsData = data.data;
-                        }
-                    } catch (error) {
-                        console.error('❌ Error fetching stats:', error);
-                    }
-                },
-                
-                // Submit new complaint
-                async submitRealComplaint() {
-                    this.loading = true;
-                    try {
-                        const complaintData = {
-                            title: this.aiResult?.category || 'New Issue',
-                            description: this.reportComment || 'No description provided',
-                            category_id: this.getCategoryId(this.selectedCategory),
-                            location: 'Downtown Area',
-                            latitude: 40.7128,
-                            longitude: -74.0060,
-                            ward_id: 1
-                        };
-                        
-                        const response = await fetch(`${this.apiBase}/complaints`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(complaintData)
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            alert('✅ Report submitted successfully!');
-                            this.showReportModal = false;
-                            this.aiResult = null;
-                            this.reportComment = '';
-                            this.fetchComplaints(); // Refresh the list
-                        } else {
-                            throw new Error(data.message || 'Submission failed');
-                        }
-                    } catch (error) {
-                        console.error('❌ Error submitting:', error);
-                        alert('Failed to submit report. Please try again.');
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-                
-                // Upvote complaint
-                async upvoteComplaint(id) {
-                    try {
-                        const response = await fetch(`${this.apiBase}/complaints/${id}/upvote`, {
-                            method: 'PUT'
-                        });
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            // Update local state
-                            const complaint = this.realComplaints.find(c => c.id === id);
-                            if (complaint) complaint.upvotes = data.upvotes;
-                        }
-                    } catch (error) {
-                        console.error('Error upvoting:', error);
-                    }
-                },
-                
-                // Helper: Get category ID from name
-                getCategoryId(categoryName) {
-                    const categoryMap = {
-                        'Pothole / Road Damage': 1,
-                        'Street Light Failure': 2,
-                        'Garbage Dumping': 5,
-                        'Water Leakage': 3,
-                        'Road Damage': 6,
-                        'Pothole Repair': 1,
-                        'Street Light Repair': 2
-                    };
-                    return categoryMap[categoryName] || 1;
-                },
-                
-                // Calculate SLA progress
-                calculateSLAProgress(complaint) {
-                    if (!complaint.sla_deadline) return 0;
-                    
-                    const created = new Date(complaint.created_at).getTime();
-                    const deadline = new Date(complaint.sla_deadline).getTime();
-                    const now = new Date().getTime();
-                    
-                    const total = deadline - created;
-                    const elapsed = now - created;
-                    
-                    let progress = (elapsed / total) * 100;
-                    return Math.min(100, Math.max(0, progress));
-                },
-
-                // ========== UI FUNCTIONS ==========
-                
-                simulateAI() {
-                    this.analyzing = true;
-                    setTimeout(() => {
-                        this.analyzing = false;
-                        this.aiResult = {
-                            category: 'Pothole / Road Damage',
-                            dept: 'Road Department',
-                            confidence: 98,
-                            isCrossDept: true,
-                            secondary: 'Water Board'
-                        };
-                        this.selectedCategory = this.aiResult.category;
-                    }, 2500);
-                },
-
-                submitTicket() {
-                    this.submitRealComplaint();
-                },
-
-                // Pin Logic
-                selectPin(pin) {
-                    this.selectedPin = pin;
-                },
-                
-                closePinDetails() {
-                    this.selectedPin = null;
-                },
-
-                verify(status) {
-                    this.verificationState = status;
-                },
-                
-                // Map Controls
-                zoomIn() {
-                    if (this.zoomLevel < 2) this.zoomLevel += 0.2;
-                },
-                zoomOut() {
-                    if (this.zoomLevel > 0.6) this.zoomLevel -= 0.2;
-                },
-                
-                // Charts
-                initCharts() {
-                    // Destroy existing charts if they exist
-                    if (this.chartTime) this.chartTime.destroy();
-                    if (this.chartCat) this.chartCat.destroy();
-                    
-                    const ctx1 = document.getElementById('chartTime');
-                    const ctx2 = document.getElementById('chartCat');
-                    
-                    if(ctx1) {
-                        this.chartTime = new Chart(ctx1, {
-                            type: 'line',
-                            data: {
-                                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                                datasets: [{
-                                    label: 'Reports Resolved',
-                                    data: this.statsData?.resolutionTrend || [12, 19, 3, 5, 2, 3],
-                                    borderColor: '#14b8a6',
-                                    backgroundColor: 'rgba(20, 184, 166, 0.2)',
-                                    tension: 0.4,
-                                    fill: true
-                                }]
-                            },
-                            options: { 
-                                responsive: true, 
-                                plugins: { legend: { display: false } } 
-                            }
-                        });
-                    }
-
-                    if(ctx2) {
-                        this.chartCat = new Chart(ctx2, {
-                            type: 'doughnut',
-                            data: {
-                                labels: ['Roads', 'Water', 'Electric', 'Garbage'],
-                                datasets: [{
-                                    data: [45, 25, 20, 10],
-                                    backgroundColor: ['#14b8a6', '#6366f1', '#f59e0b', '#ef4444'],
-                                    borderWidth: 0
-                                }]
-                            },
-                            options: { 
-                                responsive: true, 
-                                cutout: '70%',
-                                plugins: { legend: { display: false } }
-                            }
-                        });
-                    }
-                }
-            }
-        }
-    </script>
-
     <style>
         body {
             background-color: #f3f4f6;
             overflow-x: hidden;
         }
-        
-        /* Modern Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-        /* Glassmorphism Classes */
         .glass-panel {
             background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(16px);
@@ -411,7 +46,6 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        /* Map Grid */
         .bg-grid {
             background-size: 40px 40px;
             background-image:
@@ -419,10 +53,7 @@
                 linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
         }
         
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
         .line-clamp-2 {
             display: -webkit-box;
             -webkit-line-clamp: 2;
@@ -433,7 +64,7 @@
 </head>
 <body class="text-slate-800 antialiased" x-data="civicApp()" x-init="init()">
 
-    <!-- Decorative Animated Background Blobs -->
+    <!-- Decorative Background Blobs -->
     <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <div class="absolute top-0 left-1/4 w-96 h-96 bg-brand-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
         <div class="absolute top-0 right-1/4 w-96 h-96 bg-accent-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob" style="animation-delay: 2s"></div>
@@ -444,7 +75,6 @@
         
         <!-- DESKTOP SIDEBAR -->
         <aside class="hidden md:flex flex-col w-20 lg:w-72 m-4 rounded-3xl glass-panel shadow-2xl z-20 transition-all duration-300">
-            <!-- Brand -->
             <div class="p-6 flex items-center justify-center lg:justify-start gap-3 mb-6">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-accent-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/30 shrink-0">
                     <i class="fas fa-bolt text-lg"></i>
@@ -454,7 +84,6 @@
                 </div>
             </div>
 
-            <!-- Navigation -->
             <nav class="flex-1 px-4 space-y-3">
                 <template x-for="item in [
                     {id: 'home', icon: 'fa-home', label: 'Dashboard'},
@@ -475,7 +104,6 @@
                 </template>
             </nav>
 
-            <!-- User Profile -->
             <div class="p-4 mt-auto">
                 <div class="bg-white/50 p-3 rounded-2xl flex items-center gap-3 border border-white/60">
                     <img src="https://ui-avatars.com/api/?name=User+Citizen&background=0D9488&color=fff" class="w-9 h-9 rounded-full shadow-sm">
@@ -507,7 +135,6 @@
 
                 <!-- DASHBOARD (Home) -->
                 <div x-show="page === 'home'" x-transition.opacity.duration.300ms>
-                    <!-- Header -->
                     <div class="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
                         <div>
                             <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
@@ -523,47 +150,50 @@
                         </button>
                     </div>
 
-                    <!-- Loading State -->
+                    <!-- Loading -->
                     <div x-show="loading" class="text-center py-12">
                         <i class="fas fa-circle-notch fa-spin text-4xl text-brand-500"></i>
                         <p class="mt-4 text-slate-500">Loading complaints...</p>
                     </div>
 
-                    <!-- Error State -->
+                    <!-- Error / Fallback Notice -->
                     <div x-show="apiError && !loading" class="text-center py-12 glass-panel rounded-[2rem] mb-6">
                         <i class="fas fa-exclamation-triangle text-4xl text-yellow-500"></i>
                         <p class="mt-2 text-slate-600" x-text="apiError"></p>
                         <p class="text-sm text-slate-400">Showing sample data</p>
                     </div>
 
-                    <!-- Complaints Grid -->
+                    <!-- Complaints Grid (Dynamic) -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <template x-for="complaint in realComplaints" :key="complaint.id">
                             <div class="glass-panel rounded-[2rem] p-6 relative overflow-hidden group hover:bg-white/80 transition-all">
-                                <!-- Background Decor -->
+                                <!-- Background blob based on status -->
                                 <div class="absolute top-0 right-0 w-32 h-32" 
                                      :class="{
-                                         'bg-orange-200/50': complaint.status === 'IN_PROGRESS',
+                                         'bg-orange-200/50': complaint.status === 'IN PROGRESS',
                                          'bg-green-200/50': complaint.status === 'RESOLVED',
                                          'bg-blue-200/50': complaint.status === 'SUBMITTED',
-                                         'bg-red-200/50': complaint.status === 'ESCALATED'
+                                         'bg-red-200/50': complaint.status === 'ESCALATED',
+                                         'bg-purple-200/50': complaint.status === 'ASSIGNED'
                                      } rounded-full blur-2xl -mr-10 -mt-10">
                                 </div>
                                 
                                 <div class="flex justify-between items-start mb-4 relative z-10">
                                     <span class="bg-white/80 backdrop-blur px-3 py-1 rounded-lg text-xs font-bold border shadow-sm"
                                           :class="{
-                                              'text-orange-600 border-orange-100': complaint.status === 'IN_PROGRESS',
+                                              'text-orange-600 border-orange-100': complaint.status === 'IN PROGRESS',
                                               'text-green-600 border-green-100': complaint.status === 'RESOLVED',
                                               'text-blue-600 border-blue-100': complaint.status === 'SUBMITTED',
-                                              'text-red-600 border-red-100': complaint.status === 'ESCALATED'
+                                              'text-red-600 border-red-100': complaint.status === 'ESCALATED',
+                                              'text-purple-600 border-purple-100': complaint.status === 'ASSIGNED'
                                           }">
                                         <i class="fas" 
                                            :class="{
-                                               'fa-clock': complaint.status === 'IN_PROGRESS',
+                                               'fa-clock': complaint.status === 'IN PROGRESS',
                                                'fa-check-circle': complaint.status === 'RESOLVED',
                                                'fa-paper-plane': complaint.status === 'SUBMITTED',
-                                               'fa-exclamation-circle': complaint.status === 'ESCALATED'
+                                               'fa-exclamation-circle': complaint.status === 'ESCALATED',
+                                               'fa-user-check': complaint.status === 'ASSIGNED'
                                            } mr-1"></i>
                                         <span x-text="complaint.status"></span>
                                     </span>
@@ -587,7 +217,7 @@
                                                   'text-red-500': new Date(complaint.sla_deadline) < new Date(),
                                                   'text-green-500': new Date(complaint.sla_deadline) > new Date()
                                               }">
-                                            <span x-text="new Date(complaint.sla_deadline).toLocaleDateString()"></span>
+                                            <span x-text="new Date(complaint.sla_deadline).toLocaleDateString() + ' ' + new Date(complaint.sla_deadline).toLocaleTimeString()"></span>
                                         </span>
                                     </div>
                                     <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
@@ -599,6 +229,11 @@
                                              :style="'width: ' + calculateSLAProgress(complaint) + '%'">
                                         </div>
                                     </div>
+                                    <div x-show="new Date(complaint.sla_deadline) < new Date()" 
+                                         class="mt-2 flex items-center gap-2 text-[10px] text-red-600 font-medium">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <span>Auto-escalation triggered</span>
+                                    </div>
                                 </div>
 
                                 <div class="flex items-center justify-between pt-2 border-t border-slate-200/50">
@@ -606,7 +241,7 @@
                                         <button @click="upvoteComplaint(complaint.id)" 
                                                 class="flex items-center gap-1 text-xs text-slate-500 hover:text-brand-600 transition">
                                             <i class="fas fa-arrow-up"></i>
-                                            <span x-text="complaint.upvotes"></span>
+                                            <span x-text="complaint.upvotes || 0"></span>
                                         </button>
                                         <span class="text-xs text-slate-400" x-text="complaint.department_name"></span>
                                     </div>
@@ -628,13 +263,10 @@
 
                 <!-- CLUSTER MAP (Explore) -->
                 <div x-show="page === 'explore'" x-transition.opacity.duration.300ms class="h-[80vh] relative">
-                    
                     <div class="absolute inset-0 bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200">
-                        
                         <!-- Map Simulation -->
                         <div x-show="!mapLoaded" class="w-full h-full relative overflow-hidden bg-slate-100 cursor-grab active:cursor-grabbing bg-grid">
                             
-                            <!-- Roads/Map Art -->
                             <div class="absolute inset-0 transition-transform duration-200 ease-out" 
                                  :style="`transform: scale(${zoomLevel})`">
                                 <div class="absolute top-1/2 w-full h-12 bg-white border-y border-slate-200 shadow-sm transform -rotate-12 scale-110"></div>
@@ -644,33 +276,29 @@
                                 <!-- Pins from Real Data -->
                                 <template x-for="pin in realComplaints" :key="pin.id">
                                     <div class="absolute transform -translate-x-1/2 -translate-y-1/2 group"
-                                         :style="`top: ${50 + (pin.latitude ? (pin.latitude - 40.7128)*1000 : 0)}%; left: ${50 + (pin.longitude ? (pin.longitude + 74.0060)*1000 : 0)}%`"
+                                         :style="`top: ${50 + ((pin.latitude || 40.7128) - 40.7128)*1000}%; left: ${50 + ((pin.longitude || -74.0060) + 74.0060)*1000}%`"
                                          @click="selectPin(pin)">
                                         
-                                        <!-- Pin Visual -->
                                         <div class="relative transition-transform duration-300 hover:scale-125 hover:-translate-y-2 cursor-pointer z-10">
                                             <div class="w-10 h-10 bg-slate-800 text-white rounded-xl rounded-bl-none rotate-45 border-2 border-white shadow-lg flex items-center justify-center">
                                                 <i class="-rotate-45 fas" :class="{
-                                                    'fa-road': pin.category_name?.includes('Road'),
+                                                    'fa-road': pin.category_name?.includes('Road') || pin.category_name?.includes('Pothole'),
                                                     'fa-bolt': pin.category_name?.includes('Electric') || pin.category_name?.includes('Light'),
                                                     'fa-water': pin.category_name?.includes('Water'),
                                                     'fa-trash': pin.category_name?.includes('Garbage') || pin.category_name?.includes('Sanitation')
                                                 }"></i>
                                             </div>
-                                            <!-- Upvote Badge -->
-                                            <div class="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm border border-white" x-text="pin.upvotes"></div>
+                                            <div class="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm border border-white" x-text="pin.upvotes || 0"></div>
                                         </div>
                                     </div>
                                 </template>
                             </div>
 
-                            <!-- Zoom Controls -->
                             <div class="absolute bottom-6 right-6 flex flex-col gap-2">
                                 <button @click="zoomIn()" class="w-10 h-10 bg-white rounded-xl shadow-lg flex items-center justify-center hover:bg-slate-50"><i class="fas fa-plus"></i></button>
                                 <button @click="zoomOut()" class="w-10 h-10 bg-white rounded-xl shadow-lg flex items-center justify-center hover:bg-slate-50"><i class="fas fa-minus"></i></button>
                             </div>
 
-                            <!-- Info -->
                             <div class="absolute top-4 left-4 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-lg text-xs font-bold border border-yellow-200">
                                 <i class="fas fa-info-circle mr-1"></i> Map Simulation Mode
                             </div>
@@ -687,7 +315,7 @@
                              class="absolute top-0 right-0 h-full w-full md:w-96 bg-white/95 backdrop-blur shadow-2xl z-50 overflow-y-auto">
                              
                             <div class="relative h-48 bg-slate-200">
-                                <img :src="selectedPin?.image || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=400'" class="w-full h-full object-cover">
+                                <img :src="selectedPin?.image_url || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=400'" class="w-full h-full object-cover">
                                 <button @click="closePinDetails()" class="absolute top-4 right-4 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur hover:bg-black/70 transition">
                                     <i class="fas fa-times"></i>
                                 </button>
@@ -701,29 +329,32 @@
                                 <h2 class="text-xl font-bold text-slate-800 mb-2" x-text="selectedPin?.title"></h2>
                                 <p class="text-sm text-slate-600 mb-4" x-text="selectedPin?.description"></p>
                                 
-                                <!-- Action Bar -->
                                 <div class="flex gap-3 mb-6">
                                     <button @click="upvoteComplaint(selectedPin.id)" class="flex-1 bg-slate-900 text-white py-2 rounded-xl text-sm font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-95 transition">
                                         <i class="fas fa-arrow-up"></i>
-                                        <span>Upvote (<span x-text="selectedPin?.upvotes"></span>)</span>
+                                        <span>Upvote (<span x-text="selectedPin?.upvotes || 0"></span>)</span>
                                     </button>
                                     <button class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center hover:bg-slate-200"><i class="fas fa-share-alt text-slate-500"></i></button>
                                 </div>
 
-                                <!-- Status -->
                                 <div class="mb-4 p-3 bg-slate-50 rounded-xl">
                                     <p class="text-xs text-slate-500">Status</p>
                                     <p class="font-bold" :class="{
-                                        'text-orange-600': selectedPin?.status === 'IN_PROGRESS',
+                                        'text-orange-600': selectedPin?.status === 'IN PROGRESS',
                                         'text-green-600': selectedPin?.status === 'RESOLVED',
                                         'text-blue-600': selectedPin?.status === 'SUBMITTED'
                                     }" x-text="selectedPin?.status"></p>
                                 </div>
                                 
-                                <!-- Department -->
                                 <div class="mb-4 p-3 bg-slate-50 rounded-xl">
                                     <p class="text-xs text-slate-500">Assigned to</p>
                                     <p class="font-bold text-slate-700" x-text="selectedPin?.department_name"></p>
+                                </div>
+
+                                <!-- Comments Section (simplified) -->
+                                <div class="mt-4 pt-4 border-t border-slate-100">
+                                    <h4 class="text-sm font-bold mb-2">Community</h4>
+                                    <p class="text-xs text-slate-400">No comments yet. Be the first!</p>
                                 </div>
                             </div>
                         </div>
@@ -774,7 +405,6 @@
                             <p class="text-slate-500 mt-2">Compare the photos. You hold the power to close this ticket.</p>
                         </div>
 
-                        <!-- Compare Card -->
                         <div class="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
                             <div class="absolute inset-y-0 left-1/2 w-1 bg-white z-20 shadow-[0_0_10px_rgba(0,0,0,0.2)] flex items-center justify-center">
                                 <div class="w-8 h-8 bg-white rounded-full shadow-md flex items-center justify-center cursor-ew-resize text-slate-400">
@@ -928,5 +558,255 @@
         </div>
     </div>
 
+    <script>
+        function civicApp() {
+            return {
+                // Page State
+                page: 'home',
+                showReportModal: false,
+                analyzing: false,
+                aiResult: null,
+                selectedCategory: '',
+                reportComment: '',
+                verificationState: 'pending',
+                
+                // Map State
+                mapLoaded: false,
+                selectedPin: null,
+                zoomLevel: 1,
+                
+                // API Integration
+                realComplaints: [],
+                loading: false,
+                apiError: null,
+                apiBase: '/api',
+                
+                // Chart instances
+                chartTime: null,
+                chartCat: null,
+                statsData: null,
+                
+                // Initialize
+                init() {
+                    console.log('CivicFix initialized');
+                    setTimeout(() => {
+                        this.fetchComplaints();
+                        this.fetchStats();
+                    }, 100);
+                },
+
+                setPage(p) {
+                    this.page = p;
+                    window.scrollTo({top:0, behavior:'smooth'});
+                    if(p === 'stats') {
+                        setTimeout(() => this.initCharts(), 300);
+                    }
+                },
+
+                // ========== API FUNCTIONS ==========
+                
+                async fetchComplaints() {
+                    this.loading = true;
+                    try {
+                        console.log('Fetching complaints from:', this.apiBase + '/complaints');
+                        const response = await fetch(`${this.apiBase}/complaints`);
+                        const data = await response.json();
+                        
+                        console.log('API Response:', data);
+                        
+                        if (data.success && data.data) {
+                            if (data.data.length === 0) {
+                                console.log('API returned empty array, using dummy data');
+                                // Use dummy data if needed
+                            } else {
+                                this.realComplaints = data.data;
+                                console.log('✅ Loaded complaints:', this.realComplaints);
+                            }
+                        } else {
+                            console.error('Invalid API response:', data);
+                            this.apiError = 'Invalid response from server';
+                        }
+                    } catch (error) {
+                        console.error('❌ Error fetching complaints:', error);
+                        this.apiError = error.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async fetchStats() {
+                    try {
+                        const response = await fetch(`${this.apiBase}/complaints/stats`);
+                        const data = await response.json();
+                        
+                        if (data.success && data.data) {
+                            this.statsData = data.data;
+                        }
+                    } catch (error) {
+                        console.error('❌ Error fetching stats:', error);
+                    }
+                },
+                
+                async submitRealComplaint() {
+                    this.loading = true;
+                    try {
+                        const complaintData = {
+                            title: this.aiResult?.category || 'New Issue',
+                            description: this.reportComment || 'No description provided',
+                            category_id: this.getCategoryId(this.selectedCategory),
+                            location: 'Downtown Area',
+                            latitude: 40.7128,
+                            longitude: -74.0060,
+                            ward_id: 1
+                        };
+                        
+                        const response = await fetch(`${this.apiBase}/complaints`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(complaintData)
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            alert('✅ Report submitted successfully!');
+                            this.showReportModal = false;
+                            this.aiResult = null;
+                            this.reportComment = '';
+                            this.fetchComplaints();
+                        } else {
+                            throw new Error(data.message || 'Submission failed');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error submitting:', error);
+                        alert('Failed to submit report. Please try again.');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async upvoteComplaint(id) {
+                    try {
+                        const response = await fetch(`${this.apiBase}/complaints/${id}/upvote`, {
+                            method: 'PUT'
+                        });
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            const complaint = this.realComplaints.find(c => c.id === id);
+                            if (complaint) complaint.upvotes = data.upvotes;
+                        }
+                    } catch (error) {
+                        console.error('Error upvoting:', error);
+                    }
+                },
+                
+                getCategoryId(categoryName) {
+                    const map = {
+                        'Pothole / Road Damage': 1,
+                        'Street Light Failure': 2,
+                        'Garbage Dumping': 5,
+                        'Water Leakage': 3,
+                        'Road Damage': 6,
+                        'Pothole Repair': 1,
+                        'Street Light Repair': 2
+                    };
+                    return map[categoryName] || 1;
+                },
+                
+                calculateSLAProgress(complaint) {
+                    if (!complaint.sla_deadline) return 0;
+                    const created = new Date(complaint.created_at).getTime();
+                    const deadline = new Date(complaint.sla_deadline).getTime();
+                    const now = new Date().getTime();
+                    const total = deadline - created;
+                    const elapsed = now - created;
+                    let progress = (elapsed / total) * 100;
+                    return Math.min(100, Math.max(0, progress));
+                },
+
+                // ========== UI FUNCTIONS ==========
+                
+                simulateAI() {
+                    this.analyzing = true;
+                    setTimeout(() => {
+                        this.analyzing = false;
+                        this.aiResult = {
+                            category: 'Pothole / Road Damage',
+                            dept: 'Road Department',
+                            confidence: 98,
+                            isCrossDept: true,
+                            secondary: 'Water Board'
+                        };
+                        this.selectedCategory = this.aiResult.category;
+                    }, 2500);
+                },
+
+                submitTicket() {
+                    this.submitRealComplaint();
+                },
+
+                selectPin(pin) {
+                    this.selectedPin = pin;
+                },
+                
+                closePinDetails() {
+                    this.selectedPin = null;
+                },
+
+                verify(status) {
+                    this.verificationState = status;
+                },
+                
+                zoomIn() {
+                    if (this.zoomLevel < 2) this.zoomLevel += 0.2;
+                },
+                zoomOut() {
+                    if (this.zoomLevel > 0.6) this.zoomLevel -= 0.2;
+                },
+                
+                initCharts() {
+                    if (this.chartTime) this.chartTime.destroy();
+                    if (this.chartCat) this.chartCat.destroy();
+                    
+                    const ctx1 = document.getElementById('chartTime');
+                    const ctx2 = document.getElementById('chartCat');
+                    
+                    if(ctx1) {
+                        this.chartTime = new Chart(ctx1, {
+                            type: 'line',
+                            data: {
+                                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                                datasets: [{
+                                    label: 'Reports Resolved',
+                                    data: this.statsData?.resolutionTrend || [12, 19, 3, 5, 2, 3],
+                                    borderColor: '#14b8a6',
+                                    backgroundColor: 'rgba(20, 184, 166, 0.2)',
+                                    tension: 0.4,
+                                    fill: true
+                                }]
+                            },
+                            options: { responsive: true, plugins: { legend: { display: false } } }
+                        });
+                    }
+
+                    if(ctx2) {
+                        this.chartCat = new Chart(ctx2, {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Roads', 'Water', 'Electric', 'Garbage'],
+                                datasets: [{
+                                    data: [45, 25, 20, 10],
+                                    backgroundColor: ['#14b8a6', '#6366f1', '#f59e0b', '#ef4444'],
+                                    borderWidth: 0
+                                }]
+                            },
+                            options: { responsive: true, cutout: '70%', plugins: { legend: { display: false } } }
+                        });
+                    }
+                }
+            }
+        }
+    </script>
 </body>
 </html>
