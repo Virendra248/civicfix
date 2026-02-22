@@ -13,9 +13,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+// app.use(helmet({
+//     crossOriginResourcePolicy: { policy: "cross-origin" }
+// }));
+// app.use(helmet({
+//     contentSecurityPolicy: {
+//         directives: {
+//             defaultSrc: ["'self'"],
+//             scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "cdn.tailwindcss.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com"],
+//             styleSrc: ["'self'", "'unsafe-inline'", "fonts.googleapis.com", "cdnjs.cloudflare.com"],
+//             fontSrc: ["'self'", "fonts.gstatic.com", "cdnjs.cloudflare.com"],
+//             imgSrc: ["'self'", "data:", "https:", "ui-avatars.com", "images.unsplash.com"],
+//             connectSrc: ["'self'"],
+//         },
+//     },
+// }));
 app.use(cors({
     origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5500', 'http://127.0.0.1:5500'],
     credentials: true
