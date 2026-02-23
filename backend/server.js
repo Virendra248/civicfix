@@ -83,8 +83,8 @@ const startServer = async () => {
         console.warn('⚠️  Server starting without database connection');
     }
 
-    app.listen(PORT, () => {
-        console.log(`🚀 CivicFix server running on http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 CivicFix server running on port ${PORT} (0.0.0.0)`);
         console.log(`📁 Serving frontend from: ${path.join(__dirname, '../frontend')}`);
         console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
     });
