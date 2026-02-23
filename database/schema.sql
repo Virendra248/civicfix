@@ -143,7 +143,7 @@ INSERT INTO departments (name, description, head_officer, contact_email) VALUES
 ('Sanitation Department', 'Handles garbage and cleaning', 'Lisa Brown', 'sanitation@city.gov');
 
 -- Insert wards
-INSERT INTO wards (ward_number, name, councillor, zone) VALUES
+INSERT INTO wards (ward_number, name, councillor_name, zone) VALUES
 ('W001', 'Central Ward', 'Robert Taylor', 'Zone A'),
 ('W002', 'North Ward', 'Emily Davis', 'Zone B'),
 ('W003', 'South Ward', 'David Lee', 'Zone A'),

@@ -13,11 +13,19 @@ const pool = mysql.createPool({
     enableKeepAlive: true,
     keepAliveInitialDelay: 0,
     ssl: {
+<<<<<<< Updated upstream
         rejectUnauthorized: false // Allows SSL without strict certificate validation
     }
 });
 
 
+=======
+        rejectUnauthorized: true  // Required for TiDB Cloud
+    }
+});
+
+// Rest remains the same...
+>>>>>>> Stashed changes
 // Convert pool to use promises
 const promisePool = pool.promise();
 
