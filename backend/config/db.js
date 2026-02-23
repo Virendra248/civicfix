@@ -16,7 +16,7 @@ const pool = mysql.createPool({
     ssl: {
         rejectUnauthorized: false               // Allows SSL without strict certificate validation
         // For production, you can use the CA certificate instead:
-         ca: fs.readFileSync(path.join(__dirname, '../certs/ca.pem'))
+         // ca: fs.readFileSync(path.join(__dirname, '../certs/ca.pem'))
     }
 });
 
